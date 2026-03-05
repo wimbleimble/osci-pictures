@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#!/usr/bin/env python
 
 from xml.dom import minidom
 from svg.path import parse_path, Path
@@ -7,7 +7,7 @@ import numpy as np
 from argparse import ArgumentParser
 from scipy.io.wavfile import write as writewav
 
-POINT_DENSITY = 15
+SAMPLE_RATE = 44100
 
 def parse_args():
     parser = ArgumentParser(
@@ -17,15 +17,15 @@ def parse_args():
 
     parser.add_argument("infile", type=str)
     parser.add_argument("outfile", type=str)
-    parser.add_argument("length", type=int)
-    parser.add_argument("-d", "--point_density", default=15.0, type=float)
+    parser.add_argument("length", type=float)
+    parser.add_argument("-r", "--refresh_rate", default=25, type=float)
     return parser.parse_args()
 
 def path_to_points(path: Path, point_density: float):
     x = []
     y = []
     for segment in path:
-        num_points = point_density * segment.length() + 2
+        num_points = max(point_density * segment.length(), 2)
         sweep = np.arange(0, 1.0, 1/num_points)
         coords = [segment.point(point) for point in sweep]
         xs = [coord.real for coord in coords]
@@ -64,30 +64,30 @@ def main():
     path_strings = [path.getAttribute("d") for path in svg_dom.getElementsByTagName("path")]
 
     paths = [parse_path(path) for path in path_strings]
+    paths_sorted = sorted(paths, key=lambda p: [round(p.point(0).real), round(p.point(0).imag / 10)])
+    total_length = sum([path.length() for path in paths])
+    print(f"{total_length=}")
+
+    point_density = SAMPLE_RATE / (args.refresh_rate * total_length)
 
     x = []
     y = []
-    for path in paths:
-        new_x, new_y = path_to_points(path, args.point_density)
+    for path in paths_sorted:
+        new_x, new_y = path_to_points(path, point_density)
         x += new_x
         y += new_y
     normalized = normalize_point_clouds((x, y))
 
     single_length = len(normalized[0])
-    required_length = float(args.length) * 44100
+    required_length = float(args.length) * SAMPLE_RATE
     iterations = round(required_length/single_length)
 
     stacked = np.column_stack((normalized[0], normalized[1]))
-    print(stacked)
     print(f"{single_length=}, {required_length=}, {iterations=}")
 
     to_write = np.tile(stacked, (iterations,1))
 
-    writewav(args.outfile, 44100, to_write)
-
-    #plt.scatter(as_pcm[0], as_pcm[1])
-    #plt.show()
-    
+    writewav(args.outfile, SAMPLE_RATE, to_write)
 
 
 if __name__ == "__main__":
