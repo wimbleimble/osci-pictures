@@ -1,0 +1,5 @@
+matplotlib==3.10.8
+numpy==2.4.2
+pyparsing==3.3.2
+scipy==1.17.1
+svg.path==7.0
