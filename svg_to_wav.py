@@ -7,8 +7,6 @@ import numpy as np
 from argparse import ArgumentParser
 from scipy.io.wavfile import write as writewav
 
-SAMPLE_RATE = 44100
-
 def parse_args():
     parser = ArgumentParser(
         prog="Whooops",
@@ -19,6 +17,7 @@ def parse_args():
     parser.add_argument("outfile", type=str)
     parser.add_argument("length", type=float)
     parser.add_argument("-r", "--refresh_rate", default=25, type=float)
+    parser.add_argument("-s", "--sample_rate", default=44100, type=int)
     return parser.parse_args()
 
 def path_to_points(path: Path, point_density: float):
@@ -27,6 +26,7 @@ def path_to_points(path: Path, point_density: float):
     for segment in path:
         num_points = max(point_density * segment.length(), 2)
         sweep = np.arange(0, 1.0, 1/num_points)
+        #noise = np.random.rand(*np.shape(sweep)) / 10
         coords = [segment.point(point) for point in sweep]
         xs = [coord.real for coord in coords]
         ys = [-coord.imag for coord in coords]
@@ -68,7 +68,7 @@ def main():
     total_length = sum([path.length() for path in paths])
     print(f"{total_length=}")
 
-    point_density = SAMPLE_RATE / (args.refresh_rate * total_length)
+    point_density = args.sample_rate / (args.refresh_rate * total_length)
 
     x = []
     y = []
@@ -79,15 +79,16 @@ def main():
     normalized = normalize_point_clouds((x, y))
 
     single_length = len(normalized[0])
-    required_length = float(args.length) * SAMPLE_RATE
+    required_length = float(args.length) * args.sample_rate
     iterations = round(required_length/single_length)
 
     stacked = np.column_stack((normalized[0], normalized[1]))
     print(f"{single_length=}, {required_length=}, {iterations=}")
 
-    to_write = np.tile(stacked, (iterations,1))
+    tiled = np.tile(stacked, (iterations,1))
+    noise = np.random.rand(*np.shape(tiled)) / 1000
 
-    writewav(args.outfile, SAMPLE_RATE, to_write)
+    writewav(args.outfile, args.sample_rate, tiled+noise)
 
 
 if __name__ == "__main__":
